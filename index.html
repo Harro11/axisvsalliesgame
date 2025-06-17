@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Axis & Allies 1942 - Interactive Board Game</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+        
+        :root {
+            --axis-red: #8B0000;
+            --allies-blue: #1E3A8A;
+            --neutral-gray: #6B7280;
+            --gold: #FFD700;
+            --map-ocean: #2563EB;
+            --map-land: #22C55E;
+            --ui-dark: #1F2937;
+            --ui-darker: #111827;
+            --border-light: #374151;
+            --text-light: #F9FAFB;
+            --text-muted: #9CA3AF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+            color: var(--text-light);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .game-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(90deg, var(--ui-darker) 0%, var(--ui-dark) 100%);
+            border-bottom: 3px solid var(--gold);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-title {
+            font-family: 'Cinzel', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gold);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .turn-info {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .current-player {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: 2px solid;
+        }
+
+        .current-player.axis {
+            background: linear-gradient(135deg, var(--axis-red), #DC2626);
+            border-color: #FCA5A5;
+        }
+
+        .current-player.allies {
+            background: linear-gradient(135deg, var(--allies-blue), #3B82F6);
+            border-color: #93C5FD;
+        }
+
+        .phase-indicator {
+            background: var(--ui-dark);
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-light);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .game-container {
+            display: flex;
+            height: calc(100vh - 80px);
+            margin-top: 80px;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: var(--map-ocean);
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            display: block;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .zoom-controls {
+            display: flex;
+            gap: 5px;
+        }
+
+        .control-btn {
+            background: var(--ui-dark);
+            border: 1px solid var(--border-light);
+            color: var(--text-light);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background: var(--border-light);
+            transform: translateY(-1px);
+        }
+
+        .sidebar {
+            width: 400px;
+            background: var(--ui-darker);
+            border-left: 3px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-tabs {
+            display: flex;
+            background: var(--ui-dark);
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-btn.active {
+            color: var(--text-light);
+            border-bottom-color: var(--gold);
+            background: var(--ui-darker);
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .player-panel {
+            background: var(--ui-dark);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid;
+        }
+
+        .player-panel.axis {
+            border-color: var(--axis-red);
+        }
+
+        .player-panel.allies {
+            border-color: var(--allies-blue);
+        }
+
+        .player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .player-name {
+            font-family: 'Cinzel', serif;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .player-name.axis {
+            color: #FCA5A5;
+        }
+
+        .player-name.allies {
+            color: #93C5FD;
+        }
+
+        .ipc-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--gold);
+        }
+
+        .player-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .stat-item {
+            background: var(--ui-darker);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--gold);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .purchase-section {
+            background: var(--ui-dark);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-family: 'Cinzel', serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--gold);
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .unit-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .unit-purchase-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--ui-darker);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-light);
+        }
+
+        .unit-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .unit-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .unit-icon.infantry { background: #8B5A2B; }
+        .unit-icon.artillery { background: #CD853F; }
+        .unit-icon.tank { background: #696969; }
+        .unit-icon.fighter { background: #4682B4; }
+        .unit-icon.bomber { background: #2F4F4F; }
+        .unit-icon.battleship { background: #191970; }
+        .unit-icon.carrier { background: #483D8B; }
+        .unit-icon.cruiser { background: #708090; }
+        .unit-icon.destroyer { background: #778899; }
+        .unit-icon.submarine { background: #2F4F4F; }
+        .unit-icon.transport { background: #8FBC8F; }
+
+        .unit-details {
+            flex: 1;
+        }
+
+        .unit-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .unit-cost {
+            font-size: 12px;
+            color: var(--gold);
+        }
+
+        .purchase-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .quantity-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border-light);
+            background: var(--ui-dark);
+            color: var(--text-light);
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .quantity-btn:hover {
+            background: var(--border-light);
+        }
+
+        .quantity-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .quantity-display {
+            min-width: 24px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .territory-info {
+            background: var(--ui-dark);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .territory-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .territory-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .territory-value {
+            background: var(--gold);
+            color: var(--ui-darker);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .territory-units {
+            display: grid;
+            gap: 8px;
+        }
+
+        .unit-count {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            background: var(--ui-darker);
+            border-radius: 6px;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .action-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, #059669, #10B981);
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .action-btn.secondary {
+            background: var(--ui-dark);
+            color: var(--text-light);
+            border: 1px solid var(--border-light);
+        }
+
+        .action-btn.secondary:hover {
+            background: var(--border-light);
+        }
+
+        .action-btn.danger {
+            background: linear-gradient(135deg, #DC2626, #EF4444);
+            color: white;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .combat-panel {
+            background: var(--ui-dark);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid #DC2626;
+        }
+
+        .dice-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .dice-group {
+            background: var(--ui-darker);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .dice-results {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .die {
+            width: 32px;
+            height: 32px;
+            background: white;
+            color: black;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--ui-darker);
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid var(--gold);
+        }
+
+        .game-setup {
+            display: grid;
+            gap: 20px;
+        }
+
+        .setup-option {
+            background: var(--ui-dark);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-light);
+        }
+
+        @media (max-width: 1200px) {
+            .sidebar {
+                width: 350px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: 300px;
+                border-left: none;
+                border-top: 3px solid var(--border-light);
+            }
+            
+            .game-header {
+                padding: 0 15px;
+            }
+            
+            .game-title {
+                font-size: 20px;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--ui-darker);
+            padding: 30px;
+            border-radius: 12px;
+            border: 2px solid var(--gold);
+            z-index: 3000;
+            display: none;
+            text-align: center;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid var(--border-light);
+            border-top: 4px solid var(--gold);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Game Header -->
+    <header class="game-header">
+        <h1 class="game-title">AXIS & ALLIES 1942</h1>
+        <div class="turn-info">
+            <div id="currentPlayer" class="current-player axis">
+                <span>Turn 1 - Axis Powers</span>
+            </div>
+            <div id="phaseIndicator" class="phase-indicator">
+                Setup Phase
+            </div>
+        </div>
+    </header>
+
+    <!-- Game Container -->
+    <div class="game-container">
+        <!-- Map Container -->
+        <div class="map-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- Map Controls -->
+            <div class="map-controls">
+                <div class="zoom-controls">
+                    <button class="control-btn" onclick="game.zoomIn()">🔍+</button>
+                    <button class="control-btn" onclick="game.zoomOut()">🔍-</button>
+                    <button class="control-btn" onclick="game.resetView()">⌂</button>
+                </div>
+                <button class="control-btn" onclick="game.toggleGrid()">Grid</button>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Sidebar Tabs -->
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" onclick="switchTab('players')">Players</button>
+                <button class="tab-btn" onclick="switchTab('purchase')">Purchase</button>
+                <button class="tab-btn" onclick="switchTab('territory')">Territory</button>
+                <button class="tab-btn" onclick="switchTab('combat')">Combat</button>
+            </div>
+
+            <!-- Sidebar Content -->
+            <div class="sidebar-content">
+                <!-- Players Tab -->
+                <div id="playersTab" class="tab-content">
+                    <!-- Axis Player Panel -->
+                    <div class="player-panel axis">
+                        <div class="player-header">
+                            <div class="player-name axis">Axis Powers</div>
+                            <div class="ipc-display">
+                                💰 <span id="axisIPCs">40</span>
+                            </div>
+                        </div>
+                        <div class="player-stats">
+                            <div class="stat-item">
+                                <div class="stat-value" id="axisTerritories">12</div>
+                                <div class="stat-label">Territories</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="axisUnits">24</div>
+                                <div class="stat-label">Units</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Allies Player Panel -->
+                    <div class="player-panel allies">
+                        <div class="player-header">
+                            <div class="player-name allies">Allied Forces</div>
+                            <div class="ipc-display">
+                                💰 <span id="alliesIPCs">45</span>
+                            </div>
+                        </div>
+                        <div class="player-stats">
+                            <div class="stat-item">
+                                <div class="stat-value" id="alliesTerritories">18</div>
+                                <div class="stat-label">Territories</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="alliesUnits">32</div>
+                                <div class="stat-label">Units</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="action-buttons">
+                        <button class="action-btn primary" onclick="game.nextPhase()">Next Phase</button>
+                        <button class="action-btn secondary" onclick="game.endTurn()">End Turn</button>
+                        <button class="action-btn secondary" onclick="showGameMenu()">Game Menu</button>
+                    </div>
+                </div>
+
+                <!-- Purchase Tab -->
+                <div id="purchaseTab" class="tab-content" style="display: none;">
+                    <div class="purchase-section">
+                        <h3 class="section-title">Land Units</h3>
+                        <div class="unit-grid">
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon infantry">🚶</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Infantry</div>
+                                        <div class="unit-cost">3 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('infantry', -1)">-</button>
+                                    <span class="quantity-display" id="infantryCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('infantry', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon artillery">🎯</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Artillery</div>
+                                        <div class="unit-cost">4 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('artillery', -1)">-</button>
+                                    <span class="quantity-display" id="artilleryCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('artillery', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon tank">🚗</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Tank</div>
+                                        <div class="unit-cost">6 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('tank', -1)">-</button>
+                                    <span class="quantity-display" id="tankCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('tank', 1)">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="purchase-section">
+                        <h3 class="section-title">Air Units</h3>
+                        <div class="unit-grid">
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon fighter">✈️</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Fighter</div>
+                                        <div class="unit-cost">10 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('fighter', -1)">-</button>
+                                    <span class="quantity-display" id="fighterCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('fighter', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon bomber">🛩️</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Bomber</div>
+                                        <div class="unit-cost">12 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('bomber', -1)">-</button>
+                                    <span class="quantity-display" id="bomberCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('bomber', 1)">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="purchase-section">
+                        <h3 class="section-title">Naval Units</h3>
+                        <div class="unit-grid">
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon transport">🚢</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Transport</div>
+                                        <div class="unit-cost">7 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('transport', -1)">-</button>
+                                    <span class="quantity-display" id="transportCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('transport', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon destroyer">🚤</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Destroyer</div>
+                                        <div class="unit-cost">8 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('destroyer', -1)">-</button>
+                                    <span class="quantity-display" id="destroyerCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('destroyer', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon submarine">🛥️</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Submarine</div>
+                                        <div class="unit-cost">6 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('submarine', -1)">-</button>
+                                    <span class="quantity-display" id="submarineCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('submarine', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon cruiser">⛵</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Cruiser</div>
+                                        <div class="unit-cost">12 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('cruiser', -1)">-</button>
+                                    <span class="quantity-display" id="cruiserCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('cruiser', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon carrier">🛳️</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Aircraft Carrier</div>
+                                        <div class="unit-cost">14 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('carrier', -1)">-</button>
+                                    <span class="quantity-display" id="carrierCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('carrier', 1)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="unit-purchase-item">
+                                <div class="unit-info">
+                                    <div class="unit-icon battleship">🚘</div>
+                                    <div class="unit-details">
+                                        <div class="unit-name">Battleship</div>
+                                        <div class="unit-cost">20 IPCs</div>
+                                    </div>
+                                </div>
+                                <div class="purchase-controls">
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('battleship', -1)">-</button>
+                                    <span class="quantity-display" id="battleshipCount">0</span>
+                                    <button class="quantity-btn" onclick="game.adjustPurchase('battleship', 1)">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <div style="text-align: center; margin-bottom: 15px;">
+                            <strong>Total Cost: <span id="totalCost" style="color: var(--gold);">0</span> IPCs</strong>
+                        </div>
+                        <button class="action-btn primary" onclick="game.confirmPurchase()">Confirm Purchase</button>
+                        <button class="action-btn secondary" onclick="game.clearPurchase()">Clear All</button>
+                    </div>
+                </div>
+
+                <!-- Territory Tab -->
+                <div id="territoryTab" class="tab-content" style="display: none;">
+                    <div id="territoryInfo" class="territory-info">
+                        <div class="territory-header">
+                            <div class="territory-name">Select a Territory</div>
+                            <div class="territory-value">0</div>
+                        </div>
+                        <p style="color: var(--text-muted); text-align: center; margin: 20px 0;">
+                            Click on a territory on the map to view its details.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Combat Tab -->
+                <div id="combatTab" class="tab-content" style="display: none;">
+                    <div id="combatInfo" class="combat-panel">
+                        <h3 class="section-title">Combat Resolution</h3>
+                        <p style="color: var(--text-muted); text-align: center; margin: 20px 0;">
+                            No active combat. Move units to enemy territories to initiate combat.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading">
+        <div class="spinner"></div>
+        <p>Loading Axis & Allies 1942...</p>
+    </div>
+
+    <!-- Game Setup Modal -->
+    <div id="gameSetupModal" class="modal">
+        <div class="modal-content">
+            <h2 style="font-family: 'Cinzel', serif; text-align: center; margin-bottom: 30px;">
+                AXIS & ALLIES 1942 SETUP
+            </h2>
+            <div class="game-setup">
+                <div class="setup-option">
+                    <h3 style="margin-bottom: 15px;">Game Mode</h3>
+                    <select id="gameModeSelect" style="width: 100%; padding: 10px; border-radius: 6px; background: var(--ui-dark); color: var(--text-light); border: 1px solid var(--border-light);">
+                        <option value="hotseat">Hot Seat (Local)</option>
+                        <option value="ai">vs AI</option>
+                    </select>
+                </div>
+                
+                <div class="setup-option">
+                    <h3 style="margin-bottom: 15px;">Victory Condition</h3>
+                    <select id="victoryConditionSelect" style="width: 100%; padding: 10px; border-radius: 6px; background: var(--ui-dark); color: var(--text-light); border: 1px solid var(--border-light);">
+                        <option value="capitals">Capture Enemy Capitals</option>
+                        <option value="territory">Control 18+ Territories</option>
+                        <option value="economic">Accumulate 100+ IPCs</option>
+                    </select>
+                </div>
+                
+                <div class="setup-option">
+                    <h3 style="margin-bottom: 15px;">Difficulty (AI)</h3>
+                    <select id="difficultySelect" style="width: 100%; padding: 10px; border-radius: 6px; background: var(--ui-dark); color: var(--text-light); border: 1px solid var(--border-light);">
+                        <option value="easy">Easy</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="action-btn primary" onclick="startGame()">Start Game</button>
+                    <button class="action-btn secondary" onclick="loadGame()">Load Saved Game</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game State and Core Classes
+        class AxisAllies1942 {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Game state
+                this.gamePhase = 'setup';
+                this.currentPlayer = 'axis';
+                this.turn = 1;
+                this.gameMode = 'hotseat';
+                this.victoryCondition = 'capitals';
+                this.difficulty = 'normal';
+                
+                // Camera/zoom state
+                this.zoom = 1;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                this.isDragging = false;
+                this.lastMouseX = 0;
+                this.lastMouseY = 0;
+                this.showGrid = false;
+                
+                // Selection state
+                this.selectedTerritory = null;
+                this.selectedUnits = [];
+                this.moveMode = false;
+                this.combatMode = false;
+                
+                // Purchase state
+                this.purchaseQueue = {};
+                this.unitCosts = {
+                    infantry: 3,
+                    artillery: 4,
+                    tank: 6,
+                    fighter: 10,
+                    bomber: 12,
+                    transport: 7,
+                    destroyer: 8,
+                    submarine: 6,
+                    cruiser: 12,
+                    carrier: 14,
+                    battleship: 20
+                };
+                
+                this.setupCanvas();
+                this.initializeGame();
+                this.bindEvents();
+                
+                // Show setup modal
+                this.showSetupModal();
+            }
+            
+            setupCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+            
+            resizeCanvas() {
+                const container = this.canvas.parentElement;
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+                this.render();
+            }
+            
+            showSetupModal() {
+                document.getElementById('gameSetupModal').classList.add('active');
+            }
+            
+            initializeGame() {
+                this.players = {
+                    axis: {
+                        name: 'Axis Powers',
+                        ipcs: 40,
+                        territories: [],
+                        units: 0
+                    },
+                    allies: {
+                        name: 'Allied Forces',
+                        ipcs: 45,
+                        territories: [],
+                        units: 0
+                    }
+                };
+                
+                this.territories = this.createTerritories();
+                this.setupInitialUnits();
+                this.calculateIPCs();
+                this.updateUI();
+                this.render();
+            }
+            
+            createTerritories() {
+                // Authentic 1942 Axis & Allies territories with correct positioning
+                const territories = {
+                    // Europe
+                    'germany': {
+                        name: 'Germany',
+                        x: 500, y: 200,
+                        owner: 'axis',
+                        ipcs: 10,
+                        isCapital: true,
+                        type: 'land',
+                        connections: ['poland', 'france', 'denmark', 'czechoslovakia'],
+                        units: { infantry: 3, tank: 2, fighter: 2, bomber: 1 }
+                    },
+                    'italy': {
+                        name: 'Italy',
+                        x: 520, y: 280,
+                        owner: 'axis',
+                        ipcs: 6,
+                        isCapital: true,
+                        type: 'land',
+                        connections: ['france', 'yugoslavia', 'mediterranean'],
+                        units: { infantry: 2, artillery: 1, cruiser: 1 }
+                    },
+                    'france': {
+                        name: 'France',
+                        x: 450, y: 250,
+                        owner: 'axis',
+                        ipcs: 6,
+                        type: 'land',
+                        connections: ['germany', 'italy', 'spain', 'uk'],
+                        units: { infantry: 2 }
+                    },
+                    'poland': {
+                        name: 'Poland',
+                        x: 550, y: 180,
+                        owner: 'axis',
+                        ipcs: 3,
+                        type: 'land',
+                        connections: ['germany', 'russia', 'czechoslovakia'],
+                        units: { infantry: 1 }
+                    },
+                    'norway': {
+                        name: 'Norway',
+                        x: 480, y: 120,
+                        owner: 'axis',
+                        ipcs: 3,
+                        type: 'land',
+                        connections: ['finland', 'north_sea'],
+                        units: { infantry: 1 }
+                    },
+                    'finland': {
+                        name: 'Finland',
+                        x: 520, y: 100,
+                        owner: 'axis',
+                        ipcs: 2,
+                        type: 'land',
+                        connections: ['norway', 'russia'],
+                        units: { infantry: 1 }
+                    },
+                    'uk': {
+                        name: 'United Kingdom',
+                        x: 420, y: 180,
+                        owner: 'allies',
+                        ipcs: 8,
+                        isCapital: true,
+                        type: 'land',
+                        connections: ['north_sea', 'atlantic'],
+                        units: { infantry: 2, fighter: 2, bomber: 1, battleship: 1, cruiser: 1 }
+                    },
+                    'russia': {
+                        name: 'Russia',
+                        x: 600, y: 150,
+                        owner: 'allies',
+                        ipcs: 12,
+                        isCapital: true,
+                        type: 'land',
+                        connections: ['poland', 'finland', 'caucasus', 'ukraine'],
+                        units: { infantry: 4, tank: 2, fighter: 1 }
+                    },
+                    'caucasus': {
+                        name: 'Caucasus',
+                        x: 620, y: 220,
+                        owner: 'allies',
+                        ipcs: 2,
+                        type: 'land',
+                        connections: ['russia', 'persia'],
+                        units: { infantry: 1 }
+                    },
+                    
+                    // Pacific
+                    'japan': {
+                        name: 'Japan',
+                        x: 800, y: 250,
+                        owner: 'axis',
+                        ipcs: 10,
+                        isCapital: true,
+                        type: 'land',
+                        connections: ['sea_of_japan', 'pacific'],
+                        units: { infantry: 3, fighter: 2, bomber: 1, battleship: 2, carrier: 1, transport: 1 }
+                    },
+                    'manchuria': {
+                        name: 'Manchuria',
+                        x: 750, y: 200,
+                        owner: 'axis',
+                        ipcs: 3,
+                        type: 'land',
+                        connections: ['china', 'mongolia'],
+                        units: { infantry: 2, artillery: 1 }
+                    },
+                    'philippines': {
+                        name: 'Philippines',
+                        x: 780, y: 320,
+                        owner: 'axis',
+                        ipcs: 4,
+                        type: 'land',
+                        connections: ['pacific', 'east_indies'],
+                        units: { infantry: 1 }
+                    },
+                    'east_indies': {
+                        name: 'East Indies',
+                        x: 760, y: 380,
+                        owner: 'axis',
+                        ipcs: 4,
+                        type: 'land',
+                        connections: ['philippines', 'indian_ocean'],
+                        units: { infantry: 1 }
+                    },
+                    'usa': {
+                        name: 'United States',
+                        x: 150, y: 200,
+                        owner: 'allies',
+                        ipcs: 12,
+                        isCapital: true,
+                        type: 'land',
+                        connections: ['canada', 'mexico', 'pacific', 'atlantic'],
+                        units: { infantry: 4, tank: 2, fighter: 2, bomber: 1, battleship: 2, carrier: 1, transport: 1 }
+                    },
+                    'canada': {
+                        name: 'Canada',
+                        x: 200, y: 150,
+                        owner: 'allies',
+                        ipcs: 4,
+                        type: 'land',
+                        connections: ['usa', 'greenland'],
+                        units: { infantry: 2 }
+                    },
+                    'china': {
+                        name: 'China',
+                        x: 720, y: 280,
+                        owner: 'allies',
+                        ipcs: 4,
+                        type: 'land',
+                        connections: ['manchuria', 'india'],
+                        units: { infantry: 2 }
+                    },
+                    'india': {
+                        name: 'India',
+                        x: 680, y: 320,
+                        owner: 'allies',
+                        ipcs: 3,
+                        type: 'land',
+                        connections: ['china', 'persia', 'indian_ocean'],
+                        units: { infantry: 1, fighter: 1 }
+                    },
+                    'australia': {
+                        name: 'Australia',
+                        x: 850, y: 450,
+                        owner: 'allies',
+                        ipcs: 2,
+                        type: 'land',
+                        connections: ['pacific'],
+                        units: { infantry: 1 }
+                    },
+                    
+                    // Africa
+                    'egypt': {
+                        name: 'Egypt',
+                        x: 560, y: 350,
+                        owner: 'allies',
+                        ipcs: 2,
+                        type: 'land',
+                        connections: ['libya', 'sudan'],
+                        units: { infantry: 1 }
+                    },
+                    'libya': {
+                        name: 'Libya',
+                        x: 520, y: 350,
+                        owner: 'axis',
+                        ipcs: 1,
+                        type: 'land',
+                        connections: ['egypt', 'algeria'],
+                        units: { infantry: 1, tank: 1 }
+                    },
+                    'algeria': {
+                        name: 'Algeria',
+                        x: 480, y: 350,
+                        owner: 'axis',
+                        ipcs: 1,
+                        type: 'land',
+                        connections: ['libya', 'morocco'],
+                        units: { infantry: 1 }
+                    },
+                    'south_africa': {
+                        name: 'South Africa',
+                        x: 560, y: 450,
+                        owner: 'allies',
+                        ipcs: 2,
+                        type: 'land',
+                        connections: ['indian_ocean', 'atlantic'],
+                        units: { infantry: 1 }
+                    },
+                    
+                    // Sea Zones (simplified)
+                    'atlantic': {
+                        name: 'Atlantic Ocean',
+                        x: 350, y: 300,
+                        owner: 'neutral',
+                        ipcs: 0,
+                        type: 'sea',
+                        connections: ['uk', 'usa', 'south_africa'],
+                        units: {}
+                    },
+                    'pacific': {
+                        name: 'Pacific Ocean',
+                        x: 650, y: 350,
+                        owner: 'neutral',
+                        ipcs: 0,
+                        type: 'sea',
+                        connections: ['usa', 'japan', 'australia', 'philippines'],
+                        units: {}
+                    },
+                    'mediterranean': {
+                        name: 'Mediterranean Sea',
+                        x: 520, y: 320,
+                        owner: 'neutral',
+                        ipcs: 0,
+                        type: 'sea',
+                        connections: ['italy', 'egypt', 'libya'],
+                        units: {}
+                    },
+                    'indian_ocean': {
+                        name: 'Indian Ocean',
+                        x: 720, y: 400,
+                        owner: 'neutral',
+                        ipcs: 0,
+                        type: 'sea',
+                        connections: ['india', 'east_indies', 'south_africa'],
+                        units: {}
+                    }
+                };
+                
+                return territories;
+            }
+            
+            setupInitialUnits() {
+                // Count territories and assign to players
+                for (const [territoryId, territory] of Object.entries(this.territories)) {
+                    if (territory.owner === 'axis') {
+                        this.players.axis.territories.push(territoryId);
+                    } else if (territory.owner === 'allies') {
+                        this.players.allies.territories.push(territoryId);
+                    }
+                }
+                
+                // Calculate initial units
+                this.calculateUnits();
+            }
+            
+            calculateIPCs() {
+                this.players.axis.ipcs = this.players.axis.territories.reduce((total, territoryId) => {
+                    return total + this.territories[territoryId].ipcs;
+                }, 0);
+                
+                this.players.allies.ipcs = this.players.allies.territories.reduce((total, territoryId) => {
+                    return total + this.territories[territoryId].ipcs;
+                }, 0);
+            }
+            
+            calculateUnits() {
+                this.players.axis.units = this.players.axis.territories.reduce((total, territoryId) => {
+                    const territory = this.territories[territoryId];
+                    return total + Object.values(territory.units).reduce((sum, count) => sum + count, 0);
+                }, 0);
+                
+                this.players.allies.units = this.players.allies.territories.reduce((total, territoryId) => {
+                    const territory = this.territories[territoryId];
+                    return total + Object.values(territory.units).reduce((sum, count) => sum + count, 0);
+                }, 0);
+            }
+            
+            bindEvents() {
+                // Mouse events for map interaction
+                this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+                this.canvas.addEventListener('wheel', (e) => this.onWheel(e));
+                this.canvas.addEventListener('click', (e) => this.onCanvasClick(e));
+                
+                // Keyboard events
+                window.addEventListener('keydown', (e) => this.onKeyDown(e));
+            }
+            
+            onMouseDown(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                this.lastMouseX = e.clientX - rect.left;
+                this.lastMouseY = e.clientY - rect.top;
+                this.isDragging = true;
+            }
+            
+            onMouseMove(e) {
+                if (!this.isDragging) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                this.offsetX += mouseX - this.lastMouseX;
+                this.offsetY += mouseY - this.lastMouseY;
+                
+                this.lastMouseX = mouseX;
+                this.lastMouseY = mouseY;
+                
+                this.render();
+            }
+            
+            onMouseUp(e) {
+                this.isDragging = false;
+            }
+            
+            onWheel(e) {
+                e.preventDefault();
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                this.zoom = Math.max(0.5, Math.min(3, this.zoom * zoomFactor));
+                this.render();
+            }
+            
+            onCanvasClick(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left - this.offsetX) / this.zoom;
+                const mouseY = (e.clientY - rect.top - this.offsetY) / this.zoom;
+                
+                // Check if clicked on a territory
+                for (const [territoryId, territory] of Object.entries(this.territories)) {
+                    const distance = Math.sqrt(
+                        Math.pow(mouseX - territory.x, 2) + Math.pow(mouseY - territory.y, 2)
+                    );
+                    
+                    if (distance <= 30) {
+                        this.selectTerritory(territoryId);
+                        break;
+                    }
+                }
+            }
+            
+            onKeyDown(e) {
+                switch(e.key) {
+                    case 'g':
+                    case 'G':
+                        this.toggleGrid();
+                        break;
+                    case 'r':
+                    case 'R':
+                        this.resetView();
+                        break;
+                }
+            }
+            
+            selectTerritory(territoryId) {
+                this.selectedTerritory = territoryId;
+                this.updateTerritoryInfo();
+                this.render();
+            }
+            
+            updateTerritoryInfo() {
+                if (!this.selectedTerritory) return;
+                
+                const territory = this.territories[this.selectedTerritory];
+                const territoryInfo = document.getElementById('territoryInfo');
+                
+                let unitsHtml = '';
+                for (const [unitType, count] of Object.entries(territory.units)) {
+                    if (count > 0) {
+                        unitsHtml += `
+                            <div class="unit-count">
+                                <span>${unitType.charAt(0).toUpperCase() + unitType.slice(1)}</span>
+                                <span>${count}</span>
+                            </div>
+                        `;
+                    }
+                }
+                
+                if (Object.keys(territory.units).length === 0 || Object.values(territory.units).every(count => count === 0)) {
+                    unitsHtml = '<p style="color: var(--text-muted); text-align: center; margin: 10px 0;">No units present</p>';
+                }
+                
+                const ownerColor = territory.owner === 'axis' ? 'var(--axis-red)' : 
+                                 territory.owner === 'allies' ? 'var(--allies-blue)' : 'var(--neutral-gray)';
+                
+                territoryInfo.innerHTML = `
+                    <div class="territory-header">
+                        <div class="territory-name" style="color: ${ownerColor};">${territory.name}</div>
+                        <div class="territory-value">${territory.ipcs}</div>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <strong>Owner:</strong> ${territory.owner === 'neutral' ? 'Neutral' : 
+                                                territory.owner === 'axis' ? 'Axis Powers' : 'Allied Forces'}
+                    </div>
+                    <div class="territory-units">
+                        ${unitsHtml}
+                    </div>
+                `;
+                
+                // Switch to territory tab
+                switchTab('territory');
+            }
+            
+            zoomIn() {
+                this.zoom = Math.min(3, this.zoom * 1.2);
+                this.render();
+            }
+            
+            zoomOut() {
+                this.zoom = Math.max(0.5, this.zoom / 1.2);
+                this.render();
+            }
+            
+            resetView() {
+                this.zoom = 1;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                this.render();
+            }
+            
+            toggleGrid() {
+                this.showGrid = !this.showGrid;
+                this.render();
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.ctx.save();
+                this.ctx.translate(this.offsetX, this.offsetY);
+                this.ctx.scale(this.zoom, this.zoom);
+                
+                // Draw background
+                this.drawBackground();
+                
+                // Draw grid if enabled
+                if (this.showGrid) {
+                    this.drawGrid();
+                }
+                
+                // Draw territories
+                this.drawTerritories();
+                
+                // Draw connections
+                this.drawConnections();
+                
+                this.ctx.restore();
+            }
+            
+            drawBackground() {
+                // Ocean background
+                const gradient = this.ctx.createLinearGradient(0, 0, 1000, 600);
+                gradient.addColorStop(0, '#1E40AF');
+                gradient.addColorStop(1, '#1E3A8A');
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(0, 0, 1000, 600);
+                
+                // Add some wave patterns
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                this.ctx.lineWidth = 1;
+                for (let i = 0; i < 10; i++) {
+                    this.ctx.beginPath();
+                    for (let x = 0; x <= 1000; x += 20) {
+                        const y = 100 + i * 50 + Math.sin(x / 50 + i) * 10;
+                        if (x === 0) {
+                            this.ctx.moveTo(x, y);
+                        } else {
+                            this.ctx.lineTo(x, y);
+                        }
+                    }
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawGrid() {
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                this.ctx.lineWidth = 1;
+                
+                for (let x = 0; x <= 1000; x += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, 600);
+                    this.ctx.stroke();
+                }
+                
+                for (let y = 0; y <= 600; y += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(1000, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawConnections() {
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.lineWidth = 1;
+                
+                for (const [territoryId, territory] of Object.entries(this.territories)) {
+                    if (territory.connections) {
+                        for (const connectionId of territory.connections) {
+                            const connected = this.territories[connectionId];
+                            if (connected) {
+                                this.ctx.beginPath();
+                                this.ctx.moveTo(territory.x, territory.y);
+                                this.ctx.lineTo(connected.x, connected.y);
+                                this.ctx.stroke();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            drawTerritories() {
+                for (const [territoryId, territory] of Object.entries(this.territories)) {
+                    this.drawTerritory(territoryId, territory);
+                }
+            }
+            
+            drawTerritory(territoryId, territory) {
+                const isSelected = territoryId === this.selectedTerritory;
+                const radius = territory.type === 'sea' ? 25 : 35;
+                
+                // Territory circle
+                this.ctx.beginPath();
+                this.ctx.arc(territory.x, territory.y, radius, 0, 2 * Math.PI);
+                
+                // Fill based on owner
+                if (territory.type === 'sea') {
+                    this.ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                } else if (territory.owner === 'axis') {
+                    this.ctx.fillStyle = isSelected ? '#DC2626' : '#B91C1C';
+                } else if (territory.owner === 'allies') {
+                    this.ctx.fillStyle = isSelected ? '#2563EB' : '#1D4ED8';
+                } else {
+                    this.ctx.fillStyle = isSelected ? '#9CA3AF' : '#6B7280';
+                }
+                
+                this.ctx.fill();
+                
+                // Border
+                this.ctx.strokeStyle = isSelected ? '#FFD700' : '#FFFFFF';
+                this.ctx.lineWidth = isSelected ? 3 : 2;
+                this.ctx.stroke();
+                
+                // Capital indicator
+                if (territory.isCapital) {
+                    this.ctx.strokeStyle = '#FFD700';
+                    this.ctx.lineWidth = 4;
+                    this.ctx.beginPath();
+                    this.ctx.arc(territory.x, territory.y, radius + 5, 0, 2 * Math.PI);
+                    this.ctx.stroke();
+                }
+                
+                // Territory name
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.font = '12px Inter';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(territory.name, territory.x, territory.y - radius - 10);
+                
+                // IPC value
+                if (territory.ipcs > 0) {
+                    this.ctx.fillStyle = '#FFD700';
+                    this.ctx.font = 'bold 14px Inter';
+                    this.ctx.fillText(territory.ipcs.toString(), territory.x, territory.y + radius + 20);
+                }
+                
+                // Unit indicators
+                this.drawUnitIndicators(territory);
+            }
+            
+            drawUnitIndicators(territory) {
+                const unitTypes = Object.entries(territory.units).filter(([type, count]) => count > 0);
+                const totalUnits = unitTypes.reduce((sum, [type, count]) => sum + count, 0);
+                
+                if (totalUnits === 0) return;
+                
+                // Simple unit count indicator
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(territory.x - 15, territory.y - 8, 30, 16);
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.font = 'bold 12px Inter';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(totalUnits.toString(), territory.x, territory.y + 4);
+            }
+            
+            // Purchase system
+            adjustPurchase(unitType, delta) {
+                if (!this.purchaseQueue[unitType]) {
+                    this.purchaseQueue[unitType] = 0;
+                }
+                
+                const newAmount = this.purchaseQueue[unitType] + delta;
+                const cost = this.unitCosts[unitType];
+                const currentPlayer = this.players[this.currentPlayer];
+                
+                // Check if player can afford
+                const totalCost = this.calculateTotalPurchaseCost();
+                const newTotalCost = totalCost - (this.purchaseQueue[unitType] * cost) + (newAmount * cost);
+                
+                if (newAmount >= 0 && newTotalCost <= currentPlayer.ipcs) {
+                    this.purchaseQueue[unitType] = newAmount;
+                    this.updatePurchaseUI();
+                }
+            }
+            
+            calculateTotalPurchaseCost() {
+                return Object.entries(this.purchaseQueue).reduce((total, [unitType, count]) => {
+                    return total + (count * this.unitCosts[unitType]);
+                }, 0);
+            }
+            
+            updatePurchaseUI() {
+                // Update individual unit counts
+                for (const unitType of Object.keys(this.unitCosts)) {
+                    const element = document.getElementById(unitType + 'Count');
+                    if (element) {
+                        element.textContent = this.purchaseQueue[unitType] || 0;
+                    }
+                }
+                
+                // Update total cost
+                const totalCost = this.calculateTotalPurchaseCost();
+                document.getElementById('totalCost').textContent = totalCost;
+                
+                // Update purchase buttons availability
+                const currentPlayer = this.players[this.currentPlayer];
+                for (const unitType of Object.keys(this.unitCosts)) {
+                    const plusBtn = document.querySelector(`[onclick="game.adjustPurchase('${unitType}', 1)"]`);
+                    const minusBtn = document.querySelector(`[onclick="game.adjustPurchase('${unitType}', -1)"]`);
+                    
+                    if (plusBtn) {
+                        const cost = this.unitCosts[unitType];
+                        plusBtn.disabled = totalCost + cost > currentPlayer.ipcs;
+                    }
+                    
+                    if (minusBtn) {
+                        minusBtn.disabled = (this.purchaseQueue[unitType] || 0) <= 0;
+                    }
+                }
+            }
+            
+            confirmPurchase() {
+                const totalCost = this.calculateTotalPurchaseCost();
+                const currentPlayer = this.players[this.currentPlayer];
+                
+                if (totalCost <= currentPlayer.ipcs) {
+                    currentPlayer.ipcs -= totalCost;
+                    // In a full implementation, purchased units would be placed during placement phase
+                    this.clearPurchase();
+                    this.updateUI();
+                    alert(`Purchase confirmed! ${totalCost} IPCs spent. Units will be available for placement.`);
+                }
+            }
+            
+            clearPurchase() {
+                this.purchaseQueue = {};
+                this.updatePurchaseUI();
+            }
+            
+            // Game flow
+            nextPhase() {
+                const phases = ['purchase', 'combat_move', 'combat', 'noncombat_move', 'place', 'collect'];
+                const currentIndex = phases.indexOf(this.gamePhase);
+                
+                if (currentIndex < phases.length - 1) {
+                    this.gamePhase = phases[currentIndex + 1];
+                } else {
+                    this.endTurn();
+                }
+                
+                this.updateUI();
+            }
+            
+            endTurn() {
+                // Switch players
+                this.currentPlayer = this.currentPlayer === 'axis' ? 'allies' : 'axis';
+                
+                if (this.currentPlayer === 'axis') {
+                    this.turn++;
+                }
+                
+                this.gamePhase = 'purchase';
+                this.calculateIPCs();
+                this.updateUI();
+                
+                // Check victory conditions
+                this.checkVictoryConditions();
+            }
+            
+            checkVictoryConditions() {
+                // Implementation of victory condition checking
+                // This would be expanded based on the selected victory condition
+            }
+            
+            updateUI() {
+                // Update player info
+                document.getElementById('axisIPCs').textContent = this.players.axis.ipcs;
+                document.getElementById('alliesIPCs').textContent = this.players.allies.ipcs;
+                document.getElementById('axisTerritories').textContent = this.players.axis.territories.length;
+                document.getElementById('alliesTerritories').textContent = this.players.allies.territories.length;
+                document.getElementById('axisUnits').textContent = this.players.axis.units;
+                document.getElementById('alliesUnits').textContent = this.players.allies.units;
+                
+                // Update current player indicator
+                const currentPlayerEl = document.getElementById('currentPlayer');
+                currentPlayerEl.className = `current-player ${this.currentPlayer}`;
+                currentPlayerEl.textContent = `Turn ${this.turn} - ${this.players[this.currentPlayer].name}`;
+                
+                // Update phase indicator
+                const phaseNames = {
+                    'setup': 'Setup Phase',
+                    'purchase': 'Purchase Phase - Buy new units',
+                    'combat_move': 'Combat Move Phase',
+                    'combat': 'Combat Phase',
+                    'noncombat_move': 'Non-Combat Move Phase',
+                    'place': 'Place Units Phase',
+                    'collect': 'Collect Income Phase'
+                };
+                
+                document.getElementById('phaseIndicator').textContent = phaseNames[this.gamePhase] || this.gamePhase;
+                
+                // Update purchase UI
+                this.updatePurchaseUI();
+            }
+        }
+        
+        // UI Functions
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + 'Tab').style.display = 'block';
+            
+            // Add active class to selected tab button
+            event.target.classList.add('active');
+        }
+        
+        function startGame() {
+            const gameMode = document.getElementById('gameModeSelect').value;
+            const victoryCondition = document.getElementById('victoryConditionSelect').value;
+            const difficulty = document.getElementById('difficultySelect').value;
+            
+            game.gameMode = gameMode;
+            game.victoryCondition = victoryCondition;
+            game.difficulty = difficulty;
+            game.gamePhase = 'purchase';
+            
+            document.getElementById('gameSetupModal').classList.remove('active');
+            game.updateUI();
+        }
+        
+        function loadGame() {
+            alert('Load game functionality would be implemented here.');
+        }
+        
+        function showGameMenu() {
+            alert('Game menu would show options like save, load, restart, etc.');
+        }
+        
+        // Initialize game when page loads
+        let game;
+        
+        window.addEventListener('load', () => {
+            document.getElementById('loadingScreen').classList.add('active');
+            
+            setTimeout(() => {
+                game = new AxisAllies1942();
+                document.getElementById('loadingScreen').classList.remove('active');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
